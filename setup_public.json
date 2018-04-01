@@ -8,7 +8,7 @@
   "tracklist":{
     "url":"http://music.naver.com/artist/track.nhn?artistId=",
     "selectorTitle":".tb_name",
-    "selectorUrl":".tb_name a"
+    "selectorUrl":".tb_name > a"
   },
   "lyric":{
     "url":"http://music.naver.com/lyric/playerLyric.nhn?trackId=",

@@ -1,9 +1,9 @@
-const puppeteer = require('puppeteer')
+const puppeteer = require('puppeteer');
 
-const preset = require('./setup_public.json')
-const creds = require('./setup_creds.json')
+const preset = require('./setup_public.json');
+const creds = require('./setup_creds.json');
 const fs = require('fs');
-
+const resDir = './res';
 
 (async () => {
   const filedata = await openF(preset.csv)
@@ -19,6 +19,10 @@ const fs = require('fs');
   const page = await browser.newPage()
   page.on('console', console.log);
 
+  if(!fs.existsSync(resDir)){
+    fs.mkdirSync(resDir)
+  }
+
 
   await page.goto(preset.login.url)
   await page.click(preset.login.selectorId)
@@ -27,41 +31,44 @@ const fs = require('fs');
   await page.keyboard.type(creds.pw)
   await page.click(preset.login.selectorSubmit)
   await page.waitForNavigation()
-  await page.goto(preset.tracklist.url + '457253')
-  await page.waitFor(10*1000)
-
 
   //test loopy
   //let artistId = '475004'
 
-  
+  //artists[0] = name, [1] = naver artistId
   //-------------------------------------fetch artist tracklist
-  console.log('fetch artist tracklist from > ' + preset.tracklist.url + elArtist)
-  await page.goto(preset.tracklist.url + elArtist)
+  for(let i = 0; i < artists.length;i++){
+    //create artist folder
+    if(!fs.existsSync(resDir + '/' + artists[i][0])){
+      fs.mkdirSync(resDir + '/' + artists[i][0])
+    }
 
-  let tracklist = await page.evaluate((selector)=>{
-    return [...document.querySelectorAll(selector)].map(el => el.innerText)
-  },preset.tracklist.selectorTitle)
+    console.log('artist--------'+ artists[i][0])
+    console.log('fetch artist tracklist from > ' + preset.tracklist.url + artists[i][1])
+    await page.goto(preset.tracklist.url + artists[i][1])
+    await page.waitFor(4000)
 
-  let trackurls = await page.evaluate((selector)=>{
-    return [...document.querySelectorAll(selector)].map(el=>/.*trackId=(\d+)/g.exec(el.href)[1])
-  },preset.tracklist.selectorUrl)
+    let tracklist = await page.evaluate((selector)=>{
+      return [...document.querySelectorAll(selector)].map(el => el.innerText.slice(1).replace(/19세 이상 이용가/g,''))
+    },preset.tracklist.selectorTitle)
 
-  //console.log(tracklist)
-  //console.log(trackurls)
+    let trackurls = await page.evaluate((selector)=>{
+      return [...document.querySelectorAll(selector)].map(el=>/.*trackId=(\d+)/g.exec(el.href)[1])
+    },preset.tracklist.selectorUrl)
 
-  //-----------------------------------fetch a lyric
-  
-  await page.goto(preset.lyric.url + '20609554')
-  await page.waitForSelector(preset.lyric.selectorLyric)
-  let lyric = await page.evaluate((sel)=> document.querySelector(sel).innerText,preset.lyric.selectorLyric);
-  if (lyric == undefined){
-    console.log(`${tracklist[elTarget]} ... failed!`)
-  }else{
-    console.log(`${tracklist[elTarget]} ... success!`)
+    for(let j = 0;j < trackurls.length;j++){
+      //-----------------------------------fetch a lyric
+      await page.goto(preset.lyric.url + trackurls[j])
+      await page.waitForSelector(preset.lyric.selectorLyric)
+      let lyric = await page.evaluate((sel)=> document.querySelector(sel).innerText,preset.lyric.selectorLyric);
+      if (lyric == undefined){
+        console.log(`${tracklist[j]} ... failed!`)
+      }else{
+        console.log(`${tracklist[j]} ... success!`)
+      }
+      writeF(resDir + '/' + artists[i][0] + '/' + tracklist[j] + '.txt',lyric)
+    }
   }
-
-  //console.log(lyric)
 
 })();
 
