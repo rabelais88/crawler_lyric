@@ -4,20 +4,27 @@ const preset = require('./setup_public.json');
 const creds = require('./setup_creds.json');
 const fs = require('fs');
 const resDir = './res';
+const winston = require('winston');
+
+const logger = winston.createLogger({
+  transports: [
+    new winston.transports.File({ filename: 'getlyric.log' }),
+    new winston.transports.Console()
+  ]
+});
 
 (async () => {
   const filedata = await openF(preset.csv)
   let artists = filedata.split('\n').map(el=>{
-    return el.split(',')
+    return el.replace(/\r?\n?/g, '').split(',')
   })
-  console.log(`total of ${artists.length} assigned by .csv`)
+  logger.info(`total of ${artists.length} assigned by .csv`)
   //artists[0] = name, [1] = naver artistId
   
   const browser = await puppeteer.launch({
-    headless:false
+    //headless:false //for gui debug
   })
   const page = await browser.newPage()
-  page.on('console', console.log);
 
   if(!fs.existsSync(resDir)){
     fs.mkdirSync(resDir)
@@ -43,8 +50,8 @@ const resDir = './res';
       fs.mkdirSync(resDir + '/' + artists[i][0])
     }
 
-    console.log('artist--------'+ artists[i][0])
-    console.log('fetch artist tracklist from > ' + preset.tracklist.url + artists[i][1])
+    logger.log('info','artist--------' + artists[i][0])
+    logger.log('info','fetch artist tracklist from > ' + preset.tracklist.url + artists[i][1])
     await page.goto(preset.tracklist.url + artists[i][1])
     await page.waitFor(4000)
 
@@ -56,17 +63,23 @@ const resDir = './res';
       return [...document.querySelectorAll(selector)].map(el=>/.*trackId=(\d+)/g.exec(el.href)[1])
     },preset.tracklist.selectorUrl)
 
+    writeF(resDir + '/' + artists[i][0] + '/tracklist.txt', JSON.stringify({tracklist:tracklist,trackurls:trackurls}))
+
     for(let j = 0;j < trackurls.length;j++){
       //-----------------------------------fetch a lyric
       await page.goto(preset.lyric.url + trackurls[j])
       await page.waitForSelector(preset.lyric.selectorLyric)
       let lyric = await page.evaluate((sel)=> document.querySelector(sel).innerText,preset.lyric.selectorLyric);
       if (lyric == undefined){
-        console.log(`${tracklist[j]} ... failed!`)
+        logger.log('warn,'`${tracklist[j]} ... failed!`)
       }else{
-        console.log(`${tracklist[j]} ... success!`)
+        logger.log('info',`${tracklist[j]} ... success!`)
       }
-      writeF(resDir + '/' + artists[i][0] + '/' + tracklist[j] + '.txt',lyric)
+      if (lyric.includes('등록된 가사가 없습니다')){
+        logger.log('warn',`${tracklist[j]} >>> no lyrics!`)
+      }else{
+        writeF(resDir + '/' + artists[i][0] + '/' + trackurls[j] + '.txt',tracklist[j] + '>>>\n' + lyric)
+      }
     }
   }
 
@@ -91,6 +104,9 @@ function openD(targetDirectory){
 function writeF(targetFile,content){
   return new Promise((resolve,reject)=>{
     fs.writeFile(targetFile, content, 'utf8',(err)=>{
+      if(err){
+        logger.log('warn',err)
+      }
       return resolve(err)
     })
   })
