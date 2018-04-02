@@ -14,5 +14,6 @@
     "url":"http://music.naver.com/lyric/playerLyric.nhn?trackId=",
     "selectorLyric":".text"
   },
-  "csv":"artistinfo.csv"
+  "csv":"artistinfo.csv",
+  "maxPage":6
 }

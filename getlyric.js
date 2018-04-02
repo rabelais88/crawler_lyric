@@ -52,18 +52,28 @@ const logger = winston.createLogger({
 
     logger.log('info','artist--------' + artists[i][0])
     logger.log('info','fetch artist tracklist from > ' + preset.tracklist.url + artists[i][1])
-    await page.goto(preset.tracklist.url + artists[i][1])
-    await page.waitFor(4000)
 
-    let tracklist = await page.evaluate((selector)=>{
-      return [...document.querySelectorAll(selector)].map(el => el.innerText.slice(1).replace(/19세 이상 이용가/g,''))
-    },preset.tracklist.selectorTitle)
+    let tracklist = []
+    let trackurls = []
+    for (let l = 1; l < preset.maxPage + 1;l++){
+      await page.goto(preset.tracklist.url + artists[i][1] + '&page=' + l)
+      await page.waitFor(4000)
+    
+      let tracklistLocal = await page.evaluate((selector)=>{
+        return [...document.querySelectorAll(selector)].map(el => el.innerText.slice(1).replace(/19세 이상 이용가/g,''))
+      },preset.tracklist.selectorTitle)
 
-    let trackurls = await page.evaluate((selector)=>{
-      return [...document.querySelectorAll(selector)].map(el=>/.*trackId=(\d+)/g.exec(el.href)[1])
-    },preset.tracklist.selectorUrl)
+      let trackurlsLocal = await page.evaluate((selector)=>{
+        return [...document.querySelectorAll(selector)].map(el=>/.*trackId=(\d+)/g.exec(el.href)[1])
+      },preset.tracklist.selectorUrl)
 
-    writeF(resDir + '/' + artists[i][0] + '/tracklist.txt', JSON.stringify({tracklist:tracklist,trackurls:trackurls}))
+      if(tracklistLocal && tracklistLocal != undefined){
+        tracklist = [...tracklist,...tracklistLocal]
+        trackurls =[...trackurls,...trackurlsLocal]
+      }
+    }
+
+    await writeF(resDir + '/' + artists[i][0] + '/tracklist.txt', JSON.stringify({tracklist:tracklist,trackurls:trackurls}))
 
     for(let j = 0;j < trackurls.length;j++){
       //-----------------------------------fetch a lyric
@@ -78,7 +88,7 @@ const logger = winston.createLogger({
       if (lyric.includes('등록된 가사가 없습니다')){
         logger.log('warn',`${tracklist[j]} >>> no lyrics!`)
       }else{
-        writeF(resDir + '/' + artists[i][0] + '/' + trackurls[j] + '.txt',tracklist[j] + '>>>\n' + lyric)
+        await writeF(resDir + '/' + artists[i][0] + '/' + trackurls[j] + '.txt',tracklist[j] + '>>>\n' + lyric)
       }
     }
   }
